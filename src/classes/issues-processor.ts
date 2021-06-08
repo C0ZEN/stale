@@ -38,16 +38,16 @@ export class IssuesProcessor {
   }
 
   private static _endIssueProcessing(issue: Issue): void {
-    const consumedOperationsCount: number =
-      issue.operations.getConsumedOperationsCount();
+    const consumedQueryOperationsCount: number =
+      issue.operations.getConsumedQueryOperationsCount();
 
-    if (consumedOperationsCount > 0) {
+    if (consumedQueryOperationsCount > 0) {
       const issueLogger: IssueLogger = new IssueLogger(issue);
 
       issueLogger.info(
-        LoggerService.cyan(consumedOperationsCount),
-        `operation${
-          consumedOperationsCount > 1 ? 's' : ''
+        LoggerService.cyan(consumedQueryOperationsCount),
+        `query operation${
+          consumedQueryOperationsCount > 1 ? 's' : ''
         } consumed for this $$type`
       );
     }
@@ -103,7 +103,7 @@ export class IssuesProcessor {
     }
   }
 
-  async processIssues(page: Readonly<number> = 1): Promise<number> {
+  async processIssues(page: Readonly<number> = 1): Promise<void> {
     // get the next batch of issues
     const issues: Issue[] = await this.getIssues(page);
 
@@ -112,10 +112,15 @@ export class IssuesProcessor {
         LoggerService.green(`No more issues found to process. Exiting...`)
       );
       this._statistics
-        ?.setOperationsCount(this.operations.getConsumedOperationsCount())
+        ?.setQueryOperationsCount(
+          this.operations.getConsumedQueryOperationsCount()
+        )
+        ?.setMutationOperationsCount(
+          this.operations.getConsumedMutationOperationsCount()
+        )
         .logStats();
 
-      return this.operations.getRemainingOperationsCount();
+      return;
     } else {
       this._logger.info(
         `${LoggerService.yellow(
@@ -136,8 +141,9 @@ export class IssuesProcessor {
     );
 
     for (const issue of issues.values()) {
-      // Stop the processing if no more operations remains
-      if (!this.operations.hasRemainingOperations()) {
+      // @todo change?
+      // Skip the processing if no more operations remains
+      if (!this.operations.hasRemainingQueryOperations()) {
         break;
       }
 
@@ -151,24 +157,30 @@ export class IssuesProcessor {
       });
     }
 
-    if (!this.operations.hasRemainingOperations()) {
+    // @todo change?
+    if (!this.operations.hasRemainingQueryOperations()) {
       this._logger.warning(
-        LoggerService.yellowBright(`No more operations left! Exiting...`)
+        LoggerService.yellowBright(`No more query operations left! Exiting...`)
       );
       this._logger.warning(
         `${LoggerService.yellowBright(
           'If you think that not enough issues were processed you could try to increase the quantity related to the'
         )} ${this._logger.createOptionLink(
-          Option.OperationsPerRun
+          Option.QueryOperationsPerRun
         )} ${LoggerService.yellowBright(
           'option which is currently set to'
-        )} ${LoggerService.cyan(this.options.operationsPerRun)}`
+        )} ${LoggerService.cyan(this.options.queryOperationsPerRun)}`
       );
       this._statistics
-        ?.setOperationsCount(this.operations.getConsumedOperationsCount())
+        ?.setQueryOperationsCount(
+          this.operations.getConsumedQueryOperationsCount()
+        )
+        ?.setMutationOperationsCount(
+          this.operations.getConsumedMutationOperationsCount()
+        )
         .logStats();
 
-      return 0;
+      return;
     }
 
     this._logger.info(
@@ -471,8 +483,9 @@ export class IssuesProcessor {
   ): Promise<IComment[]> {
     // Find any comments since date on the given issue
     try {
-      this.operations.consumeOperation();
+      this.operations.consumeQueryOperation();
       this._statistics?.incrementFetchedItemsCommentsCount();
+
       const comments = await this.client.issues.listComments({
         owner: context.repo.owner,
         repo: context.repo.repo,
@@ -493,7 +506,7 @@ export class IssuesProcessor {
     type OctoKitIssueList = GetResponseTypeFromEndpointMethod<typeof endpoint>;
 
     try {
-      this.operations.consumeOperation();
+      this.operations.consumeQueryOperation();
       const issueResult: OctoKitIssueList =
         await this.client.issues.listForRepo({
           owner: context.repo.owner,
@@ -524,7 +537,7 @@ export class IssuesProcessor {
 
     issueLogger.info(`Checking for label on this $$type`);
 
-    this._consumeIssueOperation(issue);
+    this._consumeIssueQueryOperation(issue);
     this._statistics?.incrementFetchedItemsEventsCount();
     const options = this.client.issues.listEvents.endpoint.merge({
       owner: context.repo.owner,
@@ -706,7 +719,7 @@ export class IssuesProcessor {
 
     if (!skipMessage) {
       try {
-        this._consumeIssueOperation(issue);
+        this._consumeIssueMutationOperation(issue);
         this._statistics?.incrementAddedItemsComment(issue);
 
         if (!this.options.debugOnly) {
@@ -723,7 +736,7 @@ export class IssuesProcessor {
     }
 
     try {
-      this._consumeIssueOperation(issue);
+      this._consumeIssueMutationOperation(issue);
       this._statistics?.incrementAddedItemsLabel(issue);
       this._statistics?.incrementStaleItemsCount(issue);
 
@@ -753,7 +766,7 @@ export class IssuesProcessor {
 
     if (closeMessage) {
       try {
-        this._consumeIssueOperation(issue);
+        this._consumeIssueMutationOperation(issue);
         this._statistics?.incrementAddedItemsComment(issue);
 
         if (!this.options.debugOnly) {
@@ -771,7 +784,7 @@ export class IssuesProcessor {
 
     if (closeLabel) {
       try {
-        this._consumeIssueOperation(issue);
+        this._consumeIssueMutationOperation(issue);
         this._statistics?.incrementAddedItemsLabel(issue);
 
         if (!this.options.debugOnly) {
@@ -788,7 +801,7 @@ export class IssuesProcessor {
     }
 
     try {
-      this._consumeIssueOperation(issue);
+      this._consumeIssueMutationOperation(issue);
       this._statistics?.incrementClosedItemsCount(issue);
 
       if (!this.options.debugOnly) {
@@ -810,7 +823,7 @@ export class IssuesProcessor {
     const issueLogger: IssueLogger = new IssueLogger(issue);
 
     try {
-      this._consumeIssueOperation(issue);
+      this._consumeIssueQueryOperation(issue);
       this._statistics?.incrementFetchedPullRequestsCount();
 
       const pullRequest = await this.client.pulls.get({
@@ -846,7 +859,7 @@ export class IssuesProcessor {
     );
 
     try {
-      this._consumeIssueOperation(issue);
+      this._consumeIssueMutationOperation(issue);
       this._statistics?.incrementDeletedBranchesCount();
 
       if (!this.options.debugOnly) {
@@ -881,7 +894,7 @@ export class IssuesProcessor {
     this.removedLabelIssues.push(issue);
 
     try {
-      this._consumeIssueOperation(issue);
+      this._consumeIssueMutationOperation(issue);
       this._statistics?.incrementDeletedItemsLabelsCount(issue);
 
       if (!this.options.debugOnly) {
@@ -1015,8 +1028,9 @@ export class IssuesProcessor {
     this.addedLabelIssues.push(issue);
 
     try {
-      this.operations.consumeOperation();
+      this.operations.consumeMutationOperation();
       this._statistics?.incrementAddedItemsLabel(issue);
+
       if (!this.options.debugOnly) {
         await this.client.issues.addLabels({
           owner: context.repo.owner,
@@ -1091,9 +1105,30 @@ export class IssuesProcessor {
     }
   }
 
-  private _consumeIssueOperation(issue: Readonly<Issue>): void {
-    this.operations.consumeOperation();
-    issue.operations.consumeOperation();
+  /**
+   * @private
+   *
+   * @description
+   * Increase the counter of consumed operation related to queries (GitHub read)
+   *
+   * @param {Readonly<Issue>} issue The processed issue
+   */
+  private _consumeIssueQueryOperation(issue: Readonly<Issue>): void {
+    this.operations.consumeQueryOperation();
+    issue.operations.consumeQueryOperation();
+  }
+
+  /**
+   * @private
+   *
+   * @description
+   * Increase the counter of consumed operation related to mutations (GitHub write)
+   *
+   * @param {Readonly<Issue>} issue The processed issue
+   */
+  private _consumeIssueMutationOperation(issue: Readonly<Issue>): void {
+    this.operations.consumeMutationOperation();
+    issue.operations.consumeMutationOperation();
   }
 
   private _getDaysBeforeStaleUsedOptionName(
