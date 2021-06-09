@@ -302,7 +302,7 @@ class IssuesProcessor {
             const labelsToAddWhenUnstale = words_to_list_1.wordsToList(this.options.labelsToAddWhenUnstale);
             const labelsToRemoveWhenUnstale = words_to_list_1.wordsToList(this.options.labelsToRemoveWhenUnstale);
             for (const issue of issues.values()) {
-                // Skip the processing if no more operations remains
+                // Stop the processing if no more operations remains
                 if (!this._hasRemainingOperations()) {
                     break;
                 }

@@ -135,7 +135,7 @@ export class IssuesProcessor {
     );
 
     for (const issue of issues.values()) {
-      // Skip the processing if no more operations remains
+      // Stop the processing if no more operations remains
       if (!this._hasRemainingOperations()) {
         break;
       }
