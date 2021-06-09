@@ -288,13 +288,12 @@ class IssuesProcessor {
         return issue.isPullRequest ? option_1.Option.ClosePrLabel : option_1.Option.CloseIssueLabel;
     }
     processIssues(page = 1) {
-        var _a, _b, _c, _d;
         return __awaiter(this, void 0, void 0, function* () {
             // get the next batch of issues
             const issues = yield this.getIssues(page);
             if (issues.length <= 0) {
                 this._logger.info(logger_service_1.LoggerService.green(`No more issues found to process. Exiting...`));
-                (_b = (_a = this._statistics) === null || _a === void 0 ? void 0 : _a.setQueryOperationsCount(this.operations.getConsumedQueryOperationsCount())) === null || _b === void 0 ? void 0 : _b.setMutationOperationsCount(this.operations.getConsumedMutationOperationsCount()).logStats();
+                this._onProcessingCompletion();
                 return;
             }
             else {
@@ -303,9 +302,8 @@ class IssuesProcessor {
             const labelsToAddWhenUnstale = words_to_list_1.wordsToList(this.options.labelsToAddWhenUnstale);
             const labelsToRemoveWhenUnstale = words_to_list_1.wordsToList(this.options.labelsToRemoveWhenUnstale);
             for (const issue of issues.values()) {
-                // @todo change?
                 // Skip the processing if no more operations remains
-                if (!this.operations.hasRemainingQueryOperations()) {
+                if (!this._hasRemainingOperations()) {
                     break;
                 }
                 const issueLogger = new issue_logger_1.IssueLogger(issue);
@@ -313,11 +311,9 @@ class IssuesProcessor {
                     yield this.processIssue(issue, labelsToAddWhenUnstale, labelsToRemoveWhenUnstale);
                 }));
             }
-            // @todo change?
-            if (!this.operations.hasRemainingQueryOperations()) {
-                this._logger.warning(logger_service_1.LoggerService.yellowBright(`No more query operations left! Exiting...`));
-                this._logger.warning(`${logger_service_1.LoggerService.yellowBright('If you think that not enough issues were processed you could try to increase the quantity related to the')} ${this._logger.createOptionLink(option_1.Option.QueryOperationsPerRun)} ${logger_service_1.LoggerService.yellowBright('option which is currently set to')} ${logger_service_1.LoggerService.cyan(this.options.queryOperationsPerRun)}`);
-                (_d = (_c = this._statistics) === null || _c === void 0 ? void 0 : _c.setQueryOperationsCount(this.operations.getConsumedQueryOperationsCount())) === null || _d === void 0 ? void 0 : _d.setMutationOperationsCount(this.operations.getConsumedMutationOperationsCount()).logStats();
+            if (!this._hasRemainingOperations()) {
+                this._logger.warning(logger_service_1.LoggerService.yellowBright(`No more operations left! Exiting...`));
+                this._onProcessingCompletion();
                 return;
             }
             this._logger.info(`${logger_service_1.LoggerService.green('Batch')} ${logger_service_1.LoggerService.cyan(`#${page}`)} ${logger_service_1.LoggerService.green('processed.')}`);
@@ -971,6 +967,67 @@ class IssuesProcessor {
             return option_1.Option.RemoveIssueStaleWhenUpdated;
         }
         return option_1.Option.RemoveStaleWhenUpdated;
+    }
+    _getRemoveStaleWhenCommentedUsedOptionName(issue) {
+        if (issue.isPullRequest) {
+            if (is_boolean_1.isBoolean(this.options.removePrStaleWhenCommented)) {
+                return option_1.Option.RemovePrStaleWhenCommented;
+            }
+            return option_1.Option.RemoveStaleWhenCommented;
+        }
+        if (is_boolean_1.isBoolean(this.options.removeIssueStaleWhenCommented)) {
+            return option_1.Option.RemoveIssueStaleWhenCommented;
+        }
+        return option_1.Option.RemoveStaleWhenCommented;
+    }
+    /**
+     * @private
+     *
+     * @description
+     * Check if there is remaining operations
+     * Useful to stop the processing since it's pointless if there is no more operations available
+     *
+     * @returns {boolean} Return true if there is some remaining operations
+     */
+    _hasRemainingOperations() {
+        return (this.operations.hasRemainingQueryOperations() &&
+            this.operations.hasRemainingMutationOperations());
+    }
+    /**
+     * @private
+     *
+     * @description
+     * Update the statistics about the operations and log the stats
+     */
+    _logStats() {
+        var _a, _b;
+        (_b = (_a = this._statistics) === null || _a === void 0 ? void 0 : _a.setQueryOperationsCount(this.operations.getConsumedQueryOperationsCount())) === null || _b === void 0 ? void 0 : _b.setMutationOperationsCount(this.operations.getConsumedMutationOperationsCount()).logStats();
+    }
+    /**
+     * @private
+     *
+     * @description
+     * Log if there is no more operations
+     */
+    _logOperationsOverflow() {
+        if (!this.operations.hasRemainingQueryOperations()) {
+            this._logger.warning(logger_service_1.LoggerService.yellowBright(`No more query operations left! The action was not able to process all the issues from your repository`));
+            this._logger.warning(`${logger_service_1.LoggerService.yellowBright('If you think that not enough issues were processed you could try to increase the quantity related to the')} ${this._logger.createOptionLink(option_1.Option.QueryOperationsPerRun)} ${logger_service_1.LoggerService.yellowBright('option which is currently set to')} ${logger_service_1.LoggerService.cyan(this.options.queryOperationsPerRun)}`);
+        }
+        if (!this.operations.hasRemainingMutationOperations()) {
+            this._logger.warning(logger_service_1.LoggerService.yellowBright(`No more mutation operations left! The action was not able to add/remove/close all the labels/comments/issues`));
+            this._logger.warning(`${logger_service_1.LoggerService.yellowBright('If you think that not enough actions were taken to process the issues you could try to increase the quantity related to the')} ${this._logger.createOptionLink(option_1.Option.MutationOperationsPerRun)} ${logger_service_1.LoggerService.yellowBright('option which is currently set to')} ${logger_service_1.LoggerService.cyan(this.options.mutationOperationsPerRun)}`);
+        }
+    }
+    /**
+     * @private
+     *
+     * @description
+     * Start the logic when the issue processor can no longer process or when it's done processing
+     */
+    _onProcessingCompletion() {
+        this._logOperationsOverflow();
+        this._logStats();
     }
 }
 exports.IssuesProcessor = IssuesProcessor;
