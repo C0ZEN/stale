@@ -968,18 +968,6 @@ class IssuesProcessor {
         }
         return option_1.Option.RemoveStaleWhenUpdated;
     }
-    _getRemoveStaleWhenCommentedUsedOptionName(issue) {
-        if (issue.isPullRequest) {
-            if (is_boolean_1.isBoolean(this.options.removePrStaleWhenCommented)) {
-                return option_1.Option.RemovePrStaleWhenCommented;
-            }
-            return option_1.Option.RemoveStaleWhenCommented;
-        }
-        if (is_boolean_1.isBoolean(this.options.removeIssueStaleWhenCommented)) {
-            return option_1.Option.RemoveIssueStaleWhenCommented;
-        }
-        return option_1.Option.RemoveStaleWhenCommented;
-    }
     /**
      * @private
      *
