@@ -77,6 +77,8 @@ export class IssuesProcessor {
   readonly deletedBranchIssues: Issue[] = [];
   readonly removedLabelIssues: Issue[] = [];
   readonly addedLabelIssues: Issue[] = [];
+  readonly addedStaleCommentIssues: Issue[] = [];
+  readonly addedCloseCommentIssues: Issue[] = [];
 
   constructor(options: IIssuesProcessorOptions) {
     this.options = options;
@@ -708,6 +710,7 @@ export class IssuesProcessor {
       try {
         this._consumeIssueOperation(issue);
         this._statistics?.incrementAddedItemsComment(issue);
+        this.addedStaleCommentIssues.push(issue);
 
         if (!this.options.debugOnly) {
           await this.client.issues.createComment({
@@ -755,6 +758,7 @@ export class IssuesProcessor {
       try {
         this._consumeIssueOperation(issue);
         this._statistics?.incrementAddedItemsComment(issue);
+        this.addedCloseCommentIssues.push(issue);
 
         if (!this.options.debugOnly) {
           await this.client.issues.createComment({
